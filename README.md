@@ -355,9 +355,11 @@ ENABLE_OLLAMA_API=False
 # OPENWEBUI_PIPELINE_URL=http://localhost:9099
 
 # OPENAI_API_BASE_URL=http://difychat.duckdns.org:8088/v1
-OPENAI_API_BASE_URL=http://localhost:8088/v1
+# OPENAI_API_BASE_URL=http://localhost:8088/v1
+OPENAI_API_BASE_URL=http://host.containers.internal:8088/v1
 OPENAI_API_KEY=ocigenerativeai
-RAG_OPENAI_API_BASE_URL=http://localhost:8088/v1
+#RAG_OPENAI_API_BASE_URL=http://localhost:8088/v1
+RAG_OPENAI_API_BASE_URL=http://host.containers.internal:8088/v1
 RAG_OPENAI_API_KEY=ocigenerativeai
 RAG_EMBEDDING_ENGINE=openai
 RAG_EMBEDDING_MODEL=cohere.embed-v4.0

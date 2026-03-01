@@ -78,7 +78,6 @@ git clone https://github.com/jin38324/OCI_GenAI_access_gateway.git ~/oci-ai-stac
 ```text
 ~/oci-ai-stack/
 ├── OCI_GenAI_access_gateway/   # GitHub에서 받은 소스 (app/, deployments/ 등)
-├── oci-genai-gateway/          # Podman 볼륨용 config/logs/.env
 ├── openwebui/                 # OpenWebUI config/data/logs/.env
 ├── .oci/                      # OCI API Key (컨테이너 /root/.oci/ 경로에 매핑)
 └── wallet/                    # Oracle DB Wallet (필요 시)
@@ -91,7 +90,6 @@ git clone https://github.com/jin38324/OCI_GenAI_access_gateway.git ~/oci-ai-stac
 ```
 ~/oci-ai-stack/
 ├── OCI_GenAI_access_gateway/   # Git에서 받은 소스(app/, deployments/, README 등)
-├── oci-genai-gateway/          # 설정(config), logs, runtime 파일(예: gateway .env는 쉘 export로 대체)
 ├── openwebui/                 # OpenWebUI config/data/logs 및 자체 .env
 ├── .oci/                      # OCI API Key (컨테이너 /root/.oci/에 매핑)
 ├── wallet/                    # Oracle DB Wallet (선택)

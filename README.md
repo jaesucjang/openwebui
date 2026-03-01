@@ -373,7 +373,7 @@ ORACLE_DB_USE_WALLET=true
 ORACLE_DB_USER=OPENWEBUIUSER
 ORACLE_DB_PASSWORD=Oracle_12345
 ORACLE_DB_DSN=(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-seoul-1.oraclecloud.com))(connect_data=(service_name=lowxxxxxraclejason_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
-ORACLE_WALLET_DIR=/home/opc/wallet
+ORACLE_WALLET_DIR=/app/wallet
 ORACLE_WALLET_PASSWORD=Oracle_12345
 ORACLE_VECTOR_LENGTH=1024
 

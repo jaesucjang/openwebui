@@ -592,6 +592,8 @@ sed -i "s#host.containers.internal:8088#${GATEWAY_IP:-192.168.0.10}:8088#" .env
   TIP: uvx는 MCPO를 자동으로 다운로드하고 격리된 환경에서 실행합니다. 별도로 pip install이나
   가상환경(venv) 설정이 필요 없습니다.
 
+  ex) uvx mcpo --port 8000 --api-key "mcposecret" --config ./config.json
+
 ### 5.6 동작 확인
 
   브라우저에서 접속:

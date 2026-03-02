@@ -8,14 +8,10 @@
 
 1. [사전 준비사항](#1-사전-준비사항)
 2. [OCI API Key 설정](#2-oci-api-key-설정)
-3. [Podman으로 빠른 시작 (GitHub 이미지)](#3-podman으로-빠른-시작-github-이미지)
-4. [OpenWebUI 단독 설치 (Podman)](#4-openwebui-단독-설치-podman)
-5. [Podman으로 로컬 이미지 빌드 및 실행](#5-podman으로-로컬-이미지-빌드-및-실행)
-6. [환경 변수 설정](#6-환경-변수-설정)
-7. [Podman 특화 설정](#7-podman-특화-설정)
-8. [애플리케이션 테스트](#8-애플리케이션-테스트)
-9. [OpenWebUI 통합 설치](#9-openwebui-통합-설치)
-10. [문제 해결](#10-문제-해결)
+3. [OCI GenAI Gateway 설치](#3-oci-genai-gateway-설치)
+4. [OpenWebUI 설치 (Podman)](#4-openwebui-설치-podman)
+5. [MCPO + SQLcl MCP Server 설치](#5-mcpo--sqlcl-mcp-server-설치)
+6. [문제 해결](#6-문제-해결)
 
 ---
 
@@ -210,7 +206,7 @@ cp -r ~/.oci/* ~/oci-ai-stack/.oci/
 
 ---
 
-## 3. Podman으로 빠른 시작 (GitHub 이미지)
+## 3. OCI GenAI Gateway 설치
 
 GitHub Container Registry에서 미리 빌드된 이미지를 사용하여 바로 실행합니다.
 
@@ -292,7 +288,7 @@ podman exec -it oci-genai-gateway /bin/bash
 
 ---
 
-## 4. OpenWebUI 단독 설치 (Podman)
+## 4. OpenWebUI 설치 (Podman)
 
 OpenWebUI를 OCI GenAI Gateway와 연동하여 사용하려면, 먼저 OpenWebUI 컨테이너를 실행합니다.
 
@@ -453,7 +449,7 @@ sed -i "s#host.containers.internal:8088#${GATEWAY_IP:-192.168.0.10}:8088#" .env
 
 
 
-### 9.7 접속 정보
+### 4.3 접속 정보
 
 | 서비스 | URL | 설명 |
 |--------|-----|------|
@@ -461,7 +457,7 @@ sed -i "s#host.containers.internal:8088#${GATEWAY_IP:-192.168.0.10}:8088#" .env
 | OpenWebUI | http://localhost:3000 | 웹 채팅 인터페이스 |
 | API Docs | http://localhost:8088/docs | Swagger UI |
 
-### 9.8 OpenWebUI 초기 설정
+### 4.4 OpenWebUI 초기 설정
 
 1. 브라우저에서 http://localhost:3000 접속
 2. 첫 로그인 시 관리자 계정 생성
@@ -470,266 +466,10 @@ sed -i "s#host.containers.internal:8088#${GATEWAY_IP:-192.168.0.10}:8088#" .env
    - Key: `ocigenerativeai` (자동 설정됨)
 4. **New Chat**에서 OCI GenAI 모델 선택 후 사용
 
-### 9.9 개별 실행/중지
+### 4.5 개별 실행/중지
 
 
 ---
-
-## 10. 문제 해결
-
-### 10.1 일반적인 문제
-
-#### 문제: `Permission denied` 오류
-
-**원인**: SELinux 또는 파일 권한 문제
-
-**해결책**:
-```bash
-# SELinux 레이블 재설정
-restorecon -R ~/.oci/
-
-# 볼륨 마운트 시 :Z 플래그 확인
-podman run ... -v ~/.oci:/root/.oci:Z ...
-```
-
-#### 문제: `OCIRegionNotExists` 또는 인증 오류
-
-**원인**: OCI 설정 파일 경로 또는 환경 변수 문제
-
-**해결책**:
-```bash
-# 컨테이너 내부에서 설정 파일 확인
-podman exec -it oci-genai-gateway /bin/bash
-cat /root/.oci/config
-
-# 환경 변수 확인
-echo $OCI_REGION
-echo $OCI_COMPARTMENT
-```
-
-#### 문제: "Compartment ID must be provided" 에러
-
-**원인**: `models.yaml`에 설정된 `compartment_id`가 API 호출 시 전달되지 않음
-
-**증상**: 
-- cohere 모델은 정상 작동하지만 meta, xai, openai 등 다른 모델 호출 시 에러 발생
-- 로그에 `ResponseValidationError: 5 validation errors` 표시
-
-**해결책**:
-`app/api/models/oci_chat.py` 파일을 수정하여 모델별 `compartment_id`를 사용하도록 변경:
-
-```bash
-# 컨테이너 중지
-podman stop oci-genai-gateway
-podman rm oci-genai-gateway
-
-# oci_chat.py 파일 수정 (149-151번 줄)
-# 수정 전:
-#   http_client_headers = self._build_headers(compartment_id = OCI_COMPARTMENT)
-# 수정 후:
-#   model_info = SUPPORTED_OCIGENAI_CHAT_MODELS[self.model_id]
-#   compartment_id = model_info.get("compartment_id", OCI_COMPARTMENT)
-#   http_client_headers = self._build_headers(compartment_id = compartment_id)
-
-# _invoke_response 메서드도 동일하게 수정 (233-235번 줄)
-# 수정 전:
-#   http_client_headers = self._build_headers(OCI_COMPARTMENT, chat_request.get("conversation"))
-# 수정 후:
-#   model_info = SUPPORTED_OCIGENAI_CHAT_MODELS[self.model_id]
-#   compartment_id = model_info.get("compartment_id", OCI_COMPARTMENT)
-#   http_client_headers = self._build_headers(compartment_id, chat_request.get("conversation"))
-
-# 컨테이너 재시작
-podman run -d \
-    --name oci-genai-gateway \
-    -p 8088:8088 \
-    -v /home/opc/oci-ai-stack/OCI_GenAI_access_gateway/app:/app:Z \
-    localhost/oci-genai-access-gateway:local
-```
-
-**참고**: 
-- `config.py`의 `OCI_COMPARTMENT`가 빈 문자열이면 `models.yaml`에서 모델 설정을 읽어옵니다
-- 각 모델별로 `compartment_id`가 `models.yaml`에 정의되어 있어야 합니다
-- 수정 후 반드시 컨테이너를 재시작해야 변경사항이 적용됩니다
-
-#### 문제: 포트 이미 사용 중
-
-**해결책**:
-```bash
-# 사용 중인 포트 확인
-sudo ss -tlnp | grep 8088
-
-# 기존 컨테이너 중지 및 삭제
-podman stop oci-genai-gateway
-podman rm oci-genai-gateway
-
-# 다른 포트 사용
-podman run ... -p 8089:8088 ...
-```
-
-### 10.2 Podman 특정 문제
-
-#### 문제: 이미지 pull 실패
-
-**해결책**:
-```bash
-# GitHub Container Registry 로그인 (필요한 경우)
-podman login ghcr.io
-
-# 또는 이미지 수동 다운로드 후 로드
-podman pull ghcr.io/jin38324/oci-genai-access-gateway:v20251217
-```
-
-#### 문제: rootless 포트 바인딩 제한
-
-**원인**: Rootless 모드에서 1024 미만 포트는 특권 필요
-
-**해결책**:
-```bash
-# 1024 이상 포트 사용 (예: 8088)
-podman run ... -p 8088:8088 ...
-
-# 또는 unprivileged_port_start 설정 변경
-sudo sysctl net.ipv4.ip_unprivileged_port_start=80
-```
-
-### 10.3 로그 확인 및 디버깅
-
-```bash
-# 실시간 로그 확인
-podman logs -f oci-genai-gateway
-
-# 마지막 100줄 로그 확인
-podman logs --tail 100 oci-genai-gateway
-
-# 컨테이너 내부 파일 확인
-podman exec oci-genai-gateway ls -la /app/
-
-# 네트워크 연결 테스트
-podman exec oci-genai-gateway curl -v https://generativeai.${OCI_REGION}.oci.oraclecloud.com
-```
-
-### 10.4 OpenWebUI 특정 문제
-
-#### 문제: OpenWebUI에서 모델 목록이 안 보임
-
-**해결책**:
-```bash
-# OCI GenAI Gateway가 정상 실행 중인지 확인
-podman-compose ps
-
-# OpenWebUI 컨테이너에서 Gateway 연결 테스트
-podman exec openwebui curl http://oci-genai-gateway:8088/v1/models
-
-# OpenWebUI 로그 확인
-podman-compose logs openwebui
-```
-
-#### 문제: OpenWebUI에서 "Connection refused" 오류
-
-**해결책**:
-```bash
-# 네트워크 확인
-podman network ls
-podman network inspect ai-stack-network
-
-# 두 컨테이너가 같은 네트워크에 있는지 확인
-podman inspect oci-genai-gateway | grep -A 5 Networks
-podman inspect openwebui | grep -A 5 Networks
-```
-
-### 10.5 Oracle DB Wallet 특정 문제
-
-#### 문제: Wallet 파일 접근 권한 오류
-
-**원인**: SELinux 또는 파일 권한 문제
-
-**해결책**:
-```bash
-# Wallet 디렉토리 SELinux 컨텍스트 확인
-ls -Z ~/oci-ai-stack/wallet/
-
-# SELinux 레이블 재설정
-restorecon -R ~/oci-ai-stack/wallet/
-
-# 또는 permissive 모드로 변경 (임시)
-sudo setenforce 0
-```
-
-#### 문제: TNS_ADMIN 환경 변수 오류
-
-**해결책**:
-```bash
-# 컨테이너 내부에서 환경 변수 확인
-podman exec openwebui echo $TNS_ADMIN
-
-# 컨테이너 내부에서 Wallet 파일 확인
-podman exec openwebui ls -la /app/wallet/
-
-# tnsnames.ora 파일 확인
-podman exec openwebui cat /app/wallet/tnsnames.ora
-```
-
-#### 문제: Oracle DB 연결 실패
-
-**해결책**:
-```bash
-# Wallet 파일 존재 확인
-ls -la ~/oci-ai-stack/wallet/
-
-# 파일 권한 확인 (읽기 가능해야 함)
-chmod 644 ~/oci-ai-stack/wallet/*
-
-# 컨테이너에서 직접 테스트 (sqlplus 또는 cx_Oracle 필요)
-podman exec -it openwebui /bin/bash
-# 내부에서: sqlplus user/password@MYDB_high
-```
-
-### 10.6 컨테이너 정리
-
-```bash
-# 실행 중인 컨테이너 중지
-podman stop oci-genai-gateway
-
-# 컨테이너 삭제
-podman rm oci-genai-gateway
-
-# 이미지 삭제 (재설치 시)
-podman rmi oci-genai-gateway:local
-
-# 전체 정리 (미사용 리소스)
-podman system prune -f
-```
-
----
-
-## 참고 자료
-
-- [OCI Generative AI Documentation](https://docs.oracle.com/en-us/iaas/Content/generative-ai/home.htm)
-- [OCI SDK Configuration](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm)
-- [Podman Documentation](https://docs.podman.io/)
-- [GitHub Repository](https://github.com/jin38324/OCI_GenAI_access_gateway)
-
----
-
-## 지원 모델
-
-`models.yaml`에서 설정 가능한 모델 유형:
-
-1. **ondemand**: OCI Generative AI 사전 학습 챗 모델
-2. **embedding**: OCI Generative AI 임베딩 모델
-3. **dedicated**: 전용 AI 클러스터 모델
-4. **datascience**: OCI Data Science AI Quick Action 배포 모델
-5. **imported**: 가져온 모델
-6. **grok**: XAI Grok 모델
-7. **gemini**: Google Gemini 모델
-8. **openai**: OpenAI GPT 모델
-
----
-
-**문서 버전**: 2025.02  
-**Podman 버전**: 4.x 이상 권장  
-**OCI GenAI Gateway 버전**: v20251217
 
 ## 5. MCPO + SQLcl MCP Server 설치
 
@@ -765,7 +505,7 @@ podman system prune -f
   # Java HotSpot(TM) 64-Bit Server VM
   ```
 
-  5.2.2 SQLcl 설치
+#### 5.2.2 SQLcl 설치
 
   ```bash
   # SQLcl 설치
@@ -782,7 +522,7 @@ podman system prune -f
   참고: SQLcl 25.1 버전부터 MCP Server 기능이 내장되어 있습니다. 별도 빌드나 추가 설치 없이
   sql /nolog @mcp 명령으로 MCP Server 모드를 실행할 수 있습니다.
 
-  5.2.3 uv 설치
+#### 5.2.3 uv 설치
 
   MCPO를 가상환경 없이 간편하게 실행하기 위해 uv를 사용합니다:
 
@@ -798,13 +538,13 @@ podman system prune -f
 # 설치 확인
   uv --version
 
-  5.3 MCPO 설정
+### 5.3 MCPO 설정
 
-  5.3.1 디렉토리 생성
+#### 5.3.1 디렉토리 생성
 
   mkdir -p ~/oci-ai-stack/mcpo
 
-  5.3.2 config.json 생성
+#### 5.3.2 config.json 생성
 
   Oracle Wallet을 사용하여 비밀번호 노출 없이 DB에 접속하도록 설정합니다:
 
@@ -827,7 +567,7 @@ podman system prune -f
   - "args": ["/nolog", "@mcp"] — DB 미접속 상태로 MCP Server 모드 시작
   - "TNS_ADMIN": "/home/opc/wallet" — 기존 Oracle Wallet 경로를 지정하여 Wallet 인증 사용
 
-  5.3.3 폴더 구조 확인
+#### 5.3.3 폴더 구조 확인
 
   ~/oci-ai-stack/
   ├── OCI_GenAI_access_gateway/   # 기존 (포트 8088)
@@ -837,12 +577,12 @@ podman system prune -f
   └── mcpo/                       # 새로 추가 (포트 8000)
       └── config.json
 
-  5.4 방화벽 설정
+### 5.4 방화벽 설정
 
   sudo firewall-cmd --permanent --add-port=8000/tcp
   sudo firewall-cmd --reload
 
-  5.5 MCPO 실행
+### 5.5 MCPO 실행
 
   cd ~/oci-ai-stack/mcpo
   uvx mcpo --port 8000 --api-key "
@@ -852,7 +592,7 @@ podman system prune -f
   TIP: uvx는 MCPO를 자동으로 다운로드하고 격리된 환경에서 실행합니다. 별도로 pip install이나
   가상환경(venv) 설정이 필요 없습니다.
 
-  5.6 동작 확인
+### 5.6 동작 확인
 
   브라우저에서 접속:
   http://<서버IP>:8000/docs
@@ -860,7 +600,7 @@ podman system prune -f
   자동 생성된 OpenAPI 문서에서 SQLcl MCP 도구(execute_sql, list_connections 등)가 보이면
   성공입니다.
 
-  5.7 전체 서비스 포트 정리
+### 5.7 전체 서비스 포트 정리
 
   ┌────────────────────┬───────────┬────────────────────────────┐
   │       서비스       │   포트    │            용도            │
@@ -876,7 +616,7 @@ podman system prune -f
   │ API Docs (MCPO)    │ 8000/docs │ MCPO Swagger UI            │
   └────────────────────┴───────────┴────────────────────────────┘
 
-  5.8 문제 해결
+### 5.8 문제 해결
 
   문제: sql 명령어를 찾을 수 없음
 
@@ -917,7 +657,7 @@ podman system prune -f
   uvx mcpo --port 8001 --api-key "your-secret-key" --config ./config.json
 
 
-  5.9 SQLcl Named Connection 저장
+### 5.9 SQLcl Named Connection 저장
 
   `list-connections` 엔드포인트에서 연결 목록이 조회되려면 SQLcl의 연결 관리자에 named connection을
   먼저 저장해야 합니다. MCPO 실행 전(또는 후)에 아래 명령을 한 번만 실행하면 영구 저장됩니다.
@@ -1012,4 +752,260 @@ OpenWebUI에서 MCPO를 연결하는 화면 입력 가이드
   └───────────────────────────┴────────────────────────────────────────────────┘
 
                                                                           
+
+## 6. 문제 해결
+
+### 6.1 일반적인 문제
+
+#### 문제: `Permission denied` 오류
+
+**원인**: SELinux 또는 파일 권한 문제
+
+**해결책**:
+```bash
+# SELinux 레이블 재설정
+restorecon -R ~/.oci/
+
+# 볼륨 마운트 시 :Z 플래그 확인
+podman run ... -v ~/.oci:/root/.oci:Z ...
+```
+
+#### 문제: `OCIRegionNotExists` 또는 인증 오류
+
+**원인**: OCI 설정 파일 경로 또는 환경 변수 문제
+
+**해결책**:
+```bash
+# 컨테이너 내부에서 설정 파일 확인
+podman exec -it oci-genai-gateway /bin/bash
+cat /root/.oci/config
+
+# 환경 변수 확인
+echo $OCI_REGION
+echo $OCI_COMPARTMENT
+```
+
+#### 문제: "Compartment ID must be provided" 에러
+
+**원인**: `models.yaml`에 설정된 `compartment_id`가 API 호출 시 전달되지 않음
+
+**증상**: 
+- cohere 모델은 정상 작동하지만 meta, xai, openai 등 다른 모델 호출 시 에러 발생
+- 로그에 `ResponseValidationError: 5 validation errors` 표시
+
+**해결책**:
+`app/api/models/oci_chat.py` 파일을 수정하여 모델별 `compartment_id`를 사용하도록 변경:
+
+```bash
+# 컨테이너 중지
+podman stop oci-genai-gateway
+podman rm oci-genai-gateway
+
+# oci_chat.py 파일 수정 (149-151번 줄)
+# 수정 전:
+#   http_client_headers = self._build_headers(compartment_id = OCI_COMPARTMENT)
+# 수정 후:
+#   model_info = SUPPORTED_OCIGENAI_CHAT_MODELS[self.model_id]
+#   compartment_id = model_info.get("compartment_id", OCI_COMPARTMENT)
+#   http_client_headers = self._build_headers(compartment_id = compartment_id)
+
+# _invoke_response 메서드도 동일하게 수정 (233-235번 줄)
+# 수정 전:
+#   http_client_headers = self._build_headers(OCI_COMPARTMENT, chat_request.get("conversation"))
+# 수정 후:
+#   model_info = SUPPORTED_OCIGENAI_CHAT_MODELS[self.model_id]
+#   compartment_id = model_info.get("compartment_id", OCI_COMPARTMENT)
+#   http_client_headers = self._build_headers(compartment_id, chat_request.get("conversation"))
+
+# 컨테이너 재시작
+podman run -d \
+    --name oci-genai-gateway \
+    -p 8088:8088 \
+    -v /home/opc/oci-ai-stack/OCI_GenAI_access_gateway/app:/app:Z \
+    localhost/oci-genai-access-gateway:local
+```
+
+**참고**: 
+- `config.py`의 `OCI_COMPARTMENT`가 빈 문자열이면 `models.yaml`에서 모델 설정을 읽어옵니다
+- 각 모델별로 `compartment_id`가 `models.yaml`에 정의되어 있어야 합니다
+- 수정 후 반드시 컨테이너를 재시작해야 변경사항이 적용됩니다
+
+#### 문제: 포트 이미 사용 중
+
+**해결책**:
+```bash
+# 사용 중인 포트 확인
+sudo ss -tlnp | grep 8088
+
+# 기존 컨테이너 중지 및 삭제
+podman stop oci-genai-gateway
+podman rm oci-genai-gateway
+
+# 다른 포트 사용
+podman run ... -p 8089:8088 ...
+```
+
+### 6.2 Podman 특정 문제
+
+#### 문제: 이미지 pull 실패
+
+**해결책**:
+```bash
+# GitHub Container Registry 로그인 (필요한 경우)
+podman login ghcr.io
+
+# 또는 이미지 수동 다운로드 후 로드
+podman pull ghcr.io/jin38324/oci-genai-access-gateway:v20251217
+```
+
+#### 문제: rootless 포트 바인딩 제한
+
+**원인**: Rootless 모드에서 1024 미만 포트는 특권 필요
+
+**해결책**:
+```bash
+# 1024 이상 포트 사용 (예: 8088)
+podman run ... -p 8088:8088 ...
+
+# 또는 unprivileged_port_start 설정 변경
+sudo sysctl net.ipv4.ip_unprivileged_port_start=80
+```
+
+### 6.3 로그 확인 및 디버깅
+
+```bash
+# 실시간 로그 확인
+podman logs -f oci-genai-gateway
+
+# 마지막 100줄 로그 확인
+podman logs --tail 100 oci-genai-gateway
+
+# 컨테이너 내부 파일 확인
+podman exec oci-genai-gateway ls -la /app/
+
+# 네트워크 연결 테스트
+podman exec oci-genai-gateway curl -v https://generativeai.${OCI_REGION}.oci.oraclecloud.com
+```
+
+### 6.4 OpenWebUI 특정 문제
+
+#### 문제: OpenWebUI에서 모델 목록이 안 보임
+
+**해결책**:
+```bash
+# OCI GenAI Gateway가 정상 실행 중인지 확인
+podman-compose ps
+
+# OpenWebUI 컨테이너에서 Gateway 연결 테스트
+podman exec openwebui curl http://oci-genai-gateway:8088/v1/models
+
+# OpenWebUI 로그 확인
+podman-compose logs openwebui
+```
+
+#### 문제: OpenWebUI에서 "Connection refused" 오류
+
+**해결책**:
+```bash
+# 네트워크 확인
+podman network ls
+podman network inspect ai-stack-network
+
+# 두 컨테이너가 같은 네트워크에 있는지 확인
+podman inspect oci-genai-gateway | grep -A 5 Networks
+podman inspect openwebui | grep -A 5 Networks
+```
+
+### 6.5 Oracle DB Wallet 특정 문제
+
+#### 문제: Wallet 파일 접근 권한 오류
+
+**원인**: SELinux 또는 파일 권한 문제
+
+**해결책**:
+```bash
+# Wallet 디렉토리 SELinux 컨텍스트 확인
+ls -Z ~/oci-ai-stack/wallet/
+
+# SELinux 레이블 재설정
+restorecon -R ~/oci-ai-stack/wallet/
+
+# 또는 permissive 모드로 변경 (임시)
+sudo setenforce 0
+```
+
+#### 문제: TNS_ADMIN 환경 변수 오류
+
+**해결책**:
+```bash
+# 컨테이너 내부에서 환경 변수 확인
+podman exec openwebui echo $TNS_ADMIN
+
+# 컨테이너 내부에서 Wallet 파일 확인
+podman exec openwebui ls -la /app/wallet/
+
+# tnsnames.ora 파일 확인
+podman exec openwebui cat /app/wallet/tnsnames.ora
+```
+
+#### 문제: Oracle DB 연결 실패
+
+**해결책**:
+```bash
+# Wallet 파일 존재 확인
+ls -la ~/oci-ai-stack/wallet/
+
+# 파일 권한 확인 (읽기 가능해야 함)
+chmod 644 ~/oci-ai-stack/wallet/*
+
+# 컨테이너에서 직접 테스트 (sqlplus 또는 cx_Oracle 필요)
+podman exec -it openwebui /bin/bash
+# 내부에서: sqlplus user/password@MYDB_high
+```
+
+### 6.6 컨테이너 정리
+
+```bash
+# 실행 중인 컨테이너 중지
+podman stop oci-genai-gateway
+
+# 컨테이너 삭제
+podman rm oci-genai-gateway
+
+# 이미지 삭제 (재설치 시)
+podman rmi oci-genai-gateway:local
+
+# 전체 정리 (미사용 리소스)
+podman system prune -f
+```
+
+---
+
+## 참고 자료
+
+- [OCI Generative AI Documentation](https://docs.oracle.com/en-us/iaas/Content/generative-ai/home.htm)
+- [OCI SDK Configuration](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm)
+- [Podman Documentation](https://docs.podman.io/)
+- [GitHub Repository](https://github.com/jin38324/OCI_GenAI_access_gateway)
+
+---
+
+## 지원 모델
+
+`models.yaml`에서 설정 가능한 모델 유형:
+
+1. **ondemand**: OCI Generative AI 사전 학습 챗 모델
+2. **embedding**: OCI Generative AI 임베딩 모델
+3. **dedicated**: 전용 AI 클러스터 모델
+4. **datascience**: OCI Data Science AI Quick Action 배포 모델
+5. **imported**: 가져온 모델
+6. **grok**: XAI Grok 모델
+7. **gemini**: Google Gemini 모델
+8. **openai**: OpenAI GPT 모델
+
+---
+
+**문서 버전**: 2025.02  
+**Podman 버전**: 4.x 이상 권장  
+**OCI GenAI Gateway 버전**: v20251217
 

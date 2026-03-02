@@ -730,3 +730,197 @@ podman system prune -f
 **문서 버전**: 2025.02  
 **Podman 버전**: 4.x 이상 권장  
 **OCI GenAI Gateway 버전**: v20251217
+
+
+## 11. MCPO + SQLcl MCP Server 설치
+
+  MCPO(MCP-to-OpenAPI Proxy)를 설치하여 SQLcl의 내장 MCP Server를 HTTP
+  OpenAPI 엔드포인트로 변환합니다.
+  OpenWebUI 등 다른 도구에서 SQLcl의 데이터베이스 기능을 REST API로 호출할
+   수 있게 됩니다.
+
+### 11.1 개요
+
+  [SQLcl MCP Server] ── stdio ──▶ [MCPO] ── HTTP/OpenAPI ──▶ [OpenWebUI 등
+   클라이언트]
+          (포트 없음)                (포트 8000)                   (포트
+  3000)
+
+  | 구성 요소 | 역할 |
+  |-----------|------|
+  | SQLcl (25.1+) | Oracle DB 접속 및 SQL 실행 (MCP Server 내장) |
+  | MCPO | MCP 프로토콜을 OpenAPI(HTTP)로 변환하는 프록시 |
+  | Oracle Wallet | DB 인증 정보 (비밀번호 노출 없이 접속) |
+
+### 11.2 사전 준비사항
+
+#### 11.2.1 Oracle JDK 설치
+
+  SQLcl은 Java가 필요합니다. Oracle JDK를 설치합니다 (OpenJDK 아님):
+
+  # bash
+  # Oracle JDK 17 설치
+  sudo rpm -ivh
+  https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.rpm
+
+  # 설치 확인 (Oracle 표시 확인)
+  java -version
+  # java version "17.x.x"
+  # Java(TM) SE Runtime Environment (build 17.x.x)
+  # Java HotSpot(TM) 64-Bit Server VM
+
+  11.2.2 SQLcl 설치
+
+  # SQLcl 설치
+  sudo dnf install sqlcl
+
+  # 설치 확인 (25.1 이상 필요)
+  sql -version
+
+  # 설치 경로 확인
+  which sql
+  rpm -ql sqlcl
+
+  참고: SQLcl 25.1 버전부터 MCP Server 기능이 내장되어 있습니다. 별도
+  빌드나 추가 설치 없이 sql /nolog @mcp 명령으로 MCP Server 모드를 실행할
+  수 있습니다.
+
+  11.2.3 uv 설치
+
+  MCPO를 가상환경 없이 간편하게 실행하기 위해 uv를 사용합니다:
+
+# uv 설치
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  source ~/.bashrc
+
+# 설치 확인
+  uv --version
+
+  11.3 MCPO 설정
+
+  11.3.1 디렉토리 생성
+
+  mkdir -p ~/oci-ai-stack/mcpo
+
+  11.3.2 config.json 생성
+
+  Oracle Wallet을 사용하여 비밀번호 노출 없이 DB에 접속하도록 설정합니다:
+
+#cat > ~/oci-ai-stack/mcpo/config.json << 'EOF'
+  {
+    "mcpServers": {
+      "sqlcl": {
+        "command": "sql",
+        "args": ["/nolog", "@mcp"],
+        "env": {
+          "TNS_ADMIN": "/home/opc/wallet"
+        }
+      }
+    }
+  }
+  EOF
+
+# 설치 확인
+
+  설명:
+  - "command": "sql" — SQLcl 실행 파일
+  - "args": ["/nolog", "@mcp"] — DB 미접속 상태로 MCP Server 모드 시작
+  - "TNS_ADMIN": "/home/opc/wallet" — 기존 Oracle Wallet 경로를 지정하여
+  Wallet 인증 사용
+
+  11.3.3 폴더 구조 확인
+
+  ~/oci-ai-stack/
+  ├── OCI_GenAI_access_gateway/   # 기존 (포트 8088)
+  ├── openwebui/                  # 기존 (포트 3000)
+  ├── .oci/                       # 기존 (OCI API Key)
+  ├── wallet/                     # 기존 (Oracle Wallet - SQLcl 인증에
+  사용)
+  └── mcpo/                       # 새로 추가 (포트 8000)
+      └── config.json
+
+  11.4 방화벽 설정
+
+  sudo firewall-cmd --permanent --add-port=8000/tcp
+  sudo firewall-cmd --reload
+
+  11.5 MCPO 실행
+
+  cd ~/oci-ai-stack/mcpo
+  uvx mcpo --port 8000 --api-key "your-secret-key" --config ./config.json
+
+  or 
+
+  cd ~/oci-ai stack/mcpo                                                  
+  nohup uvx mcpo --port 8000 --api-key "mcposecret" --config ./config.json
+   > mcpo.log 2>&1 &  
+
+  TIP: uvx는 MCPO를 자동으로 다운로드하고 격리된 환경에서 실행합니다.
+  별도로 pip install이나 가상환경(venv) 설정이 필요 없습니다.
+
+  11.6 동작 확인
+
+  브라우저에서 접속:
+  http://<서버IP>:8000/docs
+
+  자동 생성된 OpenAPI 문서에서 SQLcl MCP 도구(execute_sql,
+  list_connections 등)가 보이면 성공입니다.
+
+  11.7 전체 서비스 포트 정리
+
+  ┌────────────────────┬───────────┬────────────────────────────┐
+  │       서비스       │   포트    │            용도            │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ OCI GenAI Gateway  │ 8088      │ LLM API 엔드포인트         │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ OpenWebUI          │ 3000      │ 웹 채팅 인터페이스         │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ MCPO               │ 8000      │ SQLcl MCP → OpenAPI 프록시 │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ API Docs (Gateway) │ 8088/docs │ Gateway Swagger UI         │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ API Docs (MCPO)    │ 8000/docs │ MCPO Swagger UI            │
+  └────────────────────┴───────────┴────────────────────────────┘
+
+  11.8 문제 해결
+
+  문제: sql 명령어를 찾을 수 없음
+
+# SQLcl 경로 확인
+  which sql
+  rpm -ql sqlcl
+
+# PATH에 없으면 추가
+  echo 'export PATH=/opt/sqlcl/bin:$PATH' >> ~/.bashrc
+  source ~/.bashrc
+
+  문제: Java 버전 오류
+
+# Java 버전 확인
+  java -version
+
+# 여러 Java가 설치된 경우 Oracle JDK 선택
+  sudo alternatives --config java
+
+  문제: Wallet 인증 실패
+
+# Wallet 파일 존재 확인
+  ls -la /home/opc/wallet/
+
+# tnsnames.ora 확인
+  cat /home/opc/wallet/tnsnames.ora
+
+# SQLcl로 직접 접속 테스트
+  export TNS_ADMIN=/home/opc/wallet
+  sql OPENWEBUIUSER@handson26ai_medium
+
+  문제: MCPO 포트 충돌
+
+# 포트 사용 확인
+  sudo ss -tlnp | grep 8000
+
+# 다른 포트로 실행
+  uvx mcpo --port 8001 --api-key "your-secret-key" --config ./config.json
+
+
+

@@ -8,11 +8,14 @@
 
 1. [사전 준비사항](#1-사전-준비사항)
 2. [OCI API Key 설정](#2-oci-api-key-설정)
-3. [OCI GenAI Gateway 설치](#3-oci-genai-gateway-설치)
-4. [OpenWebUI 설치](#4-openwebui-설치)
-5. [MCPO + SQLcl MCP Server 설치](#5-mcpo--sqlcl-mcp-server-설치)
-6. [문제 해결](#6-문제-해결)
-7. [참고 자료](#7-참고-자료)
+3. [Podman으로 빠른 시작 (GitHub 이미지)](#3-podman으로-빠른-시작-github-이미지)
+4. [OpenWebUI 단독 설치 (Podman)](#4-openwebui-단독-설치-podman)
+5. [Podman으로 로컬 이미지 빌드 및 실행](#5-podman으로-로컬-이미지-빌드-및-실행)
+6. [환경 변수 설정](#6-환경-변수-설정)
+7. [Podman 특화 설정](#7-podman-특화-설정)
+8. [애플리케이션 테스트](#8-애플리케이션-테스트)
+9. [OpenWebUI 통합 설치](#9-openwebui-통합-설치)
+10. [문제 해결](#10-문제-해결)
 
 ---
 
@@ -33,12 +36,27 @@ cd ~/oci-ai-stack
 # 필수 디렉토리 생성
 mkdir -p oci-genai-gateway      # Gateway 설정 및 로그
 mkdir -p openwebui         # OpenWebUI 데이터
+og
 # 선택적 디렉토리 (필요시 생성)
 # mkdir -p models                                # 로컬 모델 파일
 # mkdir -p certs                                 # SSL 인증서
 
 # 전체 구조 확인
+tree ~/oci-ai-stack -L
+
+
+
+# 전체 구조 확인
 tree ~/oci-ai-stack
+
+
+### 1.1.0 Git 설치 (필수)
+
+`git clone`을 사용하려면 Git이 필요합니다. 시스템에 Git이 없다면 다음 명령어로 설치해 주세요:
+
+```bash
+sudo dnf install -y git
+```
 
 ### 1.1.1 GitHub에서 초기 코드 다운로드
 
@@ -60,7 +78,6 @@ git clone https://github.com/jin38324/OCI_GenAI_access_gateway.git ~/oci-ai-stac
 ```text
 ~/oci-ai-stack/
 ├── OCI_GenAI_access_gateway/   # GitHub에서 받은 소스 (app/, deployments/ 등)
-├── oci-genai-gateway/          # Podman 볼륨용 config/logs/.env
 ├── openwebui/                 # OpenWebUI config/data/logs/.env
 ├── .oci/                      # OCI API Key (컨테이너 /root/.oci/ 경로에 매핑)
 └── wallet/                    # Oracle DB Wallet (필요 시)
@@ -73,7 +90,6 @@ git clone https://github.com/jin38324/OCI_GenAI_access_gateway.git ~/oci-ai-stac
 ```
 ~/oci-ai-stack/
 ├── OCI_GenAI_access_gateway/   # Git에서 받은 소스(app/, deployments/, README 등)
-├── oci-genai-gateway/          # 설정(config), logs, runtime 파일(예: gateway .env는 쉘 export로 대체)
 ├── openwebui/                 # OpenWebUI config/data/logs 및 자체 .env
 ├── .oci/                      # OCI API Key (컨테이너 /root/.oci/에 매핑)
 ├── wallet/                    # Oracle DB Wallet (선택)
@@ -84,15 +100,7 @@ git clone https://github.com/jin38324/OCI_GenAI_access_gateway.git ~/oci-ai-stac
 
 `OCI_GenAI_access_gateway/`는 그대로 Git 저장소로 유지하며, 나머지 디렉토리를 `~/oci-ai-stack` 루트에 추가로 만들어 Podman 실행 시 고정된 볼륨 경로로 사용하는 방식을 권장합니다. `.env` 파일이 없는 gateway는 쉘 환경 변수로, OpenWebUI는 별도 `.env` 파일로 관리해도 됩니다.
 
-### 1.2 Git 설치 (필수)
-
-`git clone`을 사용하려면 Git이 필요합니다. 시스템에 Git이 없다면 다음 명령어로 설치해 주세요:
-
-```bash
-sudo dnf install -y git
-```
-
-### 1.3 Podman 설치 (Oracle Linux ARM 기준)
+### 1.2 Podman 설치 (Oracle Linux ARM 기준)
 
 **Oracle Linux 8/9 (ARM64/aarch64)**:
 
@@ -107,10 +115,10 @@ sudo dnf install -y podman podman-docker containernetworking-plugins
 #sudo dnf install -y podman-compose
 
 # 4. 설치 확인
-# 시스템 부팅 시 자동 시작하려면:
-#systemctl --user enable podman.socket
-#systemctl --user start podman.socket
-```
+    # 시스템 부팅 시 자동 시작하려면:
+    #systemctl --user enable podman.socket
+    #systemctl --user start podman.socket
+    ```
 
 **Podman 버전 확인**:
 
@@ -125,18 +133,20 @@ podman info
 uname -m  # aarch64 출력 확인
 ```
 
-### 1.4 방화벽 및 포트 준비
+### 1.2.1 방화벽 및 포트 준비
 
-OCI GenAI Gateway(8088), OpenWebUI(3000), MCPO(8000)를 외부에서 접근 가능하게 하려면 방화벽에서 해당 포트를 열어야 합니다:
+OCI GenAI Gateway(8088)와 OpenWebUI(3000)를 외부에서 접근 가능하게 하려면 방화벽에서 해당 포트를 열어야 합니다. 예를 들어:
 
 ```bash
 sudo firewall-cmd --permanent --add-port=8088/tcp
 sudo firewall-cmd --permanent --add-port=3000/tcp
-sudo firewall-cmd --permanent --add-port=8000/tcp
 sudo firewall-cmd --reload
 ```
 
-### 1.5 필수 파일 확인
+### 1.3 필수 파일 확인
+```
+
+### 1.2 필수 파일 확인
 
 프로젝트 디렉토리 구조:
 ```
@@ -200,7 +210,7 @@ cp -r ~/.oci/* ~/oci-ai-stack/.oci/
 
 ---
 
-## 3. OCI GenAI Gateway 설치
+## 3. Podman으로 빠른 시작 (GitHub 이미지)
 
 GitHub Container Registry에서 미리 빌드된 이미지를 사용하여 바로 실행합니다.
 
@@ -282,7 +292,7 @@ podman exec -it oci-genai-gateway /bin/bash
 
 ---
 
-## 4. OpenWebUI 설치
+## 4. OpenWebUI 단독 설치 (Podman)
 
 OpenWebUI를 OCI GenAI Gateway와 연동하여 사용하려면, 먼저 OpenWebUI 컨테이너를 실행합니다.
 
@@ -343,9 +353,11 @@ ENABLE_OLLAMA_API=False
 # OPENWEBUI_PIPELINE_URL=http://localhost:9099
 
 # OPENAI_API_BASE_URL=http://difychat.duckdns.org:8088/v1
-OPENAI_API_BASE_URL=http://localhost:8088/v1
+# OPENAI_API_BASE_URL=http://localhost:8088/v1
+OPENAI_API_BASE_URL=http://host.containers.internal:8088/v1
 OPENAI_API_KEY=ocigenerativeai
-RAG_OPENAI_API_BASE_URL=http://localhost:8088/v1
+#RAG_OPENAI_API_BASE_URL=http://localhost:8088/v1
+RAG_OPENAI_API_BASE_URL=http://host.containers.internal:8088/v1
 RAG_OPENAI_API_KEY=ocigenerativeai
 RAG_EMBEDDING_ENGINE=openai
 RAG_EMBEDDING_MODEL=cohere.embed-v4.0
@@ -361,7 +373,7 @@ ORACLE_DB_USE_WALLET=true
 ORACLE_DB_USER=OPENWEBUIUSER
 ORACLE_DB_PASSWORD=Oracle_12345
 ORACLE_DB_DSN=(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-seoul-1.oraclecloud.com))(connect_data=(service_name=lowxxxxxraclejason_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
-ORACLE_WALLET_DIR=/home/opc/wallet
+ORACLE_WALLET_DIR=/app/wallet
 ORACLE_WALLET_PASSWORD=Oracle_12345
 ORACLE_VECTOR_LENGTH=1024
 
@@ -439,7 +451,17 @@ sed -i "s#host.containers.internal:8088#${GATEWAY_IP:-192.168.0.10}:8088#" .env
 
 컨테이너가 올라온 뒤 브라우저에서 `http://<호스트 IP>:3000`으로 접속해 초기 관리자 계정을 생성하고, **Settings → Connections → OpenAI API** 값이 `.env` 내용과 일치하는지 확인합니다.
 
-### 4.3 OpenWebUI 초기 설정
+
+
+### 9.7 접속 정보
+
+| 서비스 | URL | 설명 |
+|--------|-----|------|
+| OCI GenAI Gateway | http://localhost:8088 | API 엔드포인트 |
+| OpenWebUI | http://localhost:3000 | 웹 채팅 인터페이스 |
+| API Docs | http://localhost:8088/docs | Swagger UI |
+
+### 9.8 OpenWebUI 초기 설정
 
 1. 브라우저에서 http://localhost:3000 접속
 2. 첫 로그인 시 관리자 계정 생성
@@ -448,220 +470,14 @@ sed -i "s#host.containers.internal:8088#${GATEWAY_IP:-192.168.0.10}:8088#" .env
    - Key: `ocigenerativeai` (자동 설정됨)
 4. **New Chat**에서 OCI GenAI 모델 선택 후 사용
 
-### 4.4 접속 정보
+### 9.9 개별 실행/중지
 
-| 서비스 | URL | 설명 |
-|--------|-----|------|
-| OCI GenAI Gateway | http://localhost:8088 | API 엔드포인트 |
-| OpenWebUI | http://localhost:3000 | 웹 채팅 인터페이스 |
-| API Docs (Gateway) | http://localhost:8088/docs | Gateway Swagger UI |
 
 ---
 
-## 5. MCPO + SQLcl MCP Server 설치
+## 10. 문제 해결
 
-MCPO(MCP-to-OpenAPI Proxy)를 설치하여 SQLcl의 내장 MCP Server를 HTTP OpenAPI 엔드포인트로 변환합니다. OpenWebUI 등 다른 도구에서 SQLcl의 데이터베이스 기능을 REST API로 호출할 수 있게 됩니다.
-
-### 5.1 개요
-
-```
-[SQLcl MCP Server] ── stdio ──▶ [MCPO] ── HTTP/OpenAPI ──▶ [OpenWebUI 등 클라이언트]
-      (포트 없음)                (포트 8000)                   (포트 3000)
-```
-
-| 구성 요소 | 역할 |
-|-----------|------|
-| SQLcl (25.1+) | Oracle DB 접속 및 SQL 실행 (MCP Server 내장) |
-| MCPO | MCP 프로토콜을 OpenAPI(HTTP)로 변환하는 프록시 |
-| Oracle Wallet | DB 인증 정보 (비밀번호 노출 없이 접속) |
-
-### 5.2 사전 준비사항
-
-#### 5.2.1 Oracle JDK 설치
-
-SQLcl은 Java가 필요합니다. Oracle JDK를 설치합니다 (OpenJDK 아님):
-
-```bash
-# Oracle JDK 17 설치
-sudo rpm -ivh https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.rpm
-
-# 설치 확인 (Oracle 표시 확인)
-java -version
-# java version "17.x.x"
-# Java(TM) SE Runtime Environment (build 17.x.x)
-# Java HotSpot(TM) 64-Bit Server VM
-```
-
-#### 5.2.2 SQLcl 설치
-
-```bash
-# SQLcl 설치
-sudo dnf install sqlcl
-
-# 설치 확인 (25.1 이상 필요)
-sql -version
-
-# 설치 경로 확인
-which sql
-rpm -ql sqlcl
-```
-
-참고: SQLcl 25.1 버전부터 MCP Server 기능이 내장되어 있습니다. 별도 빌드나 추가 설치 없이 sql /nolog @mcp 명령으로 MCP Server 모드를 실행할 수 있습니다.
-
-#### 5.2.3 uv 설치
-
-MCPO를 가상환경 없이 간편하게 실행하기 위해 uv를 사용합니다:
-
-```bash
-# uv 설치
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source ~/.bashrc
-
-# 설치 확인
-uv --version
-```
-
-### 5.3 MCPO 설정
-
-#### 5.3.1 디렉토리 생성
-
-```bash
-mkdir -p ~/oci-ai-stack/mcpo
-```
-
-#### 5.3.2 config.json 생성
-
-Oracle Wallet을 사용하여 비밀번호 노출 없이 DB에 접속하도록 설정합니다:
-
-```bash
-cat > ~/oci-ai-stack/mcpo/config.json << 'EOF'
-{
-  "mcpServers": {
-    "sqlcl": {
-      "command": "sql",
-      "args": ["-mcp"],
-      "env": {
-        "TNS_ADMIN": "/home/opc/wallet"
-      }
-    }
-  }
-}
-EOF
-```
-
-설명:
-- "command": "sql" — SQLcl 실행 파일
-- "args": ["/nolog", "@mcp"] — DB 미접속 상태로 MCP Server 모드 시작
-- "TNS_ADMIN": "/home/opc/wallet" — 기존 Oracle Wallet 경로를 지정하여 Wallet 인증 사용
-
-#### 5.3.3 폴더 구조 확인
-
-```
-~/oci-ai-stack/
-├── OCI_GenAI_access_gateway/   # 기존 (포트 8088)
-├── openwebui/                  # 기존 (포트 3000)
-├── .oci/                       # 기존 (OCI API Key)
-├── wallet/                     # 기존 (Oracle Wallet - SQLcl 인증에 사용)
-└── mcpo/                       # 새로 추가 (포트 8000)
-    └── config.json
-```
-
-### 5.4 MCPO 실행
-
-```bash
-cd ~/oci-ai-stack/mcpo
-uvx mcpo --port 8000 --api-key "your-secret-key" --config ./config.json
-```
-
-또는 백그라운드 실행:
-
-```bash
-cd ~/oci-ai-stack/mcpo
-nohup uvx mcpo --port 8000 --api-key "mcposecret" --config ./config.json > mcpo.log 2>&1 &
-```
-
-TIP: uvx는 MCPO를 자동으로 다운로드하고 격리된 환경에서 실행합니다. 별도로 pip install이나 가상환경(venv) 설정이 필요 없습니다.
-
-### 5.5 동작 확인
-
-브라우저에서 접속:
-```
-http://<서버IP>:8000/docs
-```
-
-자동 생성된 OpenAPI 문서에서 SQLcl MCP 도구(execute_sql, list_connections 등)가 보이면 성공입니다.
-
-### 5.6 전체 서비스 포트 정리
-
-```
-┌────────────────────┬───────────┬────────────────────────────┐
-│       서비스       │   포트    │            용도            │
-├────────────────────┼───────────┼────────────────────────────┤
-│ OCI GenAI Gateway  │ 8088      │ LLM API 엔드포인트         │
-├────────────────────┼───────────┼────────────────────────────┤
-│ OpenWebUI          │ 3000      │ 웹 채팅 인터페이스         │
-├────────────────────┼───────────┼────────────────────────────┤
-│ MCPO               │ 8000      │ SQLcl MCP → OpenAPI 프록시 │
-├────────────────────┼───────────┼────────────────────────────┤
-│ API Docs (Gateway) │ 8088/docs │ Gateway Swagger UI         │
-├────────────────────┼───────────┼────────────────────────────┤
-│ API Docs (MCPO)    │ 8000/docs │ MCPO Swagger UI            │
-└────────────────────┴───────────┴────────────────────────────┘
-```
-
-### 5.7 MCPO 문제 해결
-
-#### 문제: sql 명령어를 찾을 수 없음
-
-```bash
-# SQLcl 경로 확인
-which sql
-rpm -ql sqlcl
-
-# PATH에 없으면 추가
-echo 'export PATH=/opt/sqlcl/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-```
-
-#### 문제: Java 버전 오류
-
-```bash
-# Java 버전 확인
-java -version
-
-# 여러 Java가 설치된 경우 Oracle JDK 선택
-sudo alternatives --config java
-```
-
-#### 문제: Wallet 인증 실패
-
-```bash
-# Wallet 파일 존재 확인
-ls -la /home/opc/wallet/
-
-# tnsnames.ora 확인
-cat /home/opc/wallet/tnsnames.ora
-
-# SQLcl로 직접 접속 테스트
-export TNS_ADMIN=/home/opc/wallet
-sql OPENWEBUIUSER@handson26ai_medium
-```
-
-#### 문제: MCPO 포트 충돌
-
-```bash
-# 포트 사용 확인
-sudo ss -tlnp | grep 8000
-
-# 다른 포트로 실행
-uvx mcpo --port 8001 --api-key "your-secret-key" --config ./config.json
-```
-
----
-
-## 6. 문제 해결
-
-### 6.1 일반적인 문제
+### 10.1 일반적인 문제
 
 #### 문제: `Permission denied` 오류
 
@@ -751,7 +567,7 @@ podman rm oci-genai-gateway
 podman run ... -p 8089:8088 ...
 ```
 
-### 6.2 Podman 특정 문제
+### 10.2 Podman 특정 문제
 
 #### 문제: 이미지 pull 실패
 
@@ -777,7 +593,7 @@ podman run ... -p 8088:8088 ...
 sudo sysctl net.ipv4.ip_unprivileged_port_start=80
 ```
 
-### 6.3 로그 확인 및 디버깅
+### 10.3 로그 확인 및 디버깅
 
 ```bash
 # 실시간 로그 확인
@@ -793,7 +609,7 @@ podman exec oci-genai-gateway ls -la /app/
 podman exec oci-genai-gateway curl -v https://generativeai.${OCI_REGION}.oci.oraclecloud.com
 ```
 
-### 6.4 OpenWebUI 특정 문제
+### 10.4 OpenWebUI 특정 문제
 
 #### 문제: OpenWebUI에서 모델 목록이 안 보임
 
@@ -822,7 +638,7 @@ podman inspect oci-genai-gateway | grep -A 5 Networks
 podman inspect openwebui | grep -A 5 Networks
 ```
 
-### 6.5 Oracle DB Wallet 특정 문제
+### 10.5 Oracle DB Wallet 특정 문제
 
 #### 문제: Wallet 파일 접근 권한 오류
 
@@ -869,7 +685,7 @@ podman exec -it openwebui /bin/bash
 # 내부에서: sqlplus user/password@MYDB_high
 ```
 
-### 6.6 컨테이너 정리
+### 10.6 컨테이너 정리
 
 ```bash
 # 실행 중인 컨테이너 중지
@@ -887,7 +703,7 @@ podman system prune -f
 
 ---
 
-## 7. 참고 자료
+## 참고 자료
 
 - [OCI Generative AI Documentation](https://docs.oracle.com/en-us/iaas/Content/generative-ai/home.htm)
 - [OCI SDK Configuration](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm)
@@ -914,3 +730,286 @@ podman system prune -f
 **문서 버전**: 2025.02  
 **Podman 버전**: 4.x 이상 권장  
 **OCI GenAI Gateway 버전**: v20251217
+
+## 11. MCPO + SQLcl MCP Server 설치
+
+  MCPO(MCP-to-OpenAPI Proxy)를 설치하여 SQLcl의 내장 MCP Server를 HTTP OpenAPI 엔드포인트로
+  변환합니다.
+  OpenWebUI 등 다른 도구에서 SQLcl의 데이터베이스 기능을 REST API로 호출할 수 있게 됩니다.
+
+  ### 11.1 개요
+
+  [SQLcl MCP Server] ── stdio ──▶ [MCPO] ── HTTP/OpenAPI ──▶ [OpenWebUI 등 클라이언트]
+          (포트 없음)                (포트 8000)                   (포트 3000)
+
+  | 구성 요소 | 역할 |
+  |-----------|------|
+  | SQLcl (25.1+) | Oracle DB 접속 및 SQL 실행 (MCP Server 내장) |
+  | MCPO | MCP 프로토콜을 OpenAPI(HTTP)로 변환하는 프록시 |
+  | Oracle Wallet | DB 인증 정보 (비밀번호 노출 없이 접속) |
+
+  ### 11.2 사전 준비사항
+
+  #### 11.2.1 Oracle JDK 설치
+
+  SQLcl은 Java가 필요합니다. Oracle JDK를 설치합니다 (OpenJDK 아님):
+
+  ```bash
+  # Oracle JDK 17 설치
+  sudo rpm -ivh https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.rpm
+
+  # 설치 확인 (Oracle 표시 확인)
+  java -version
+  # java version "17.x.x"
+  # Java(TM) SE Runtime Environment (build 17.x.x)
+  # Java HotSpot(TM) 64-Bit Server VM
+  ```
+
+  11.2.2 SQLcl 설치
+
+  ```bash
+  # SQLcl 설치
+  sudo dnf install sqlcl
+
+  # 설치 확인 (25.1 이상 필요)
+  sql -version
+
+  # 설치 경로 확인
+  which sql
+  rpm -ql sqlcl
+  ```
+
+  참고: SQLcl 25.1 버전부터 MCP Server 기능이 내장되어 있습니다. 별도 빌드나 추가 설치 없이
+  sql /nolog @mcp 명령으로 MCP Server 모드를 실행할 수 있습니다.
+
+  11.2.3 uv 설치
+
+  MCPO를 가상환경 없이 간편하게 실행하기 위해 uv를 사용합니다:
+
+  ```bash
+  # uv 설치
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  source ~/.bashrc
+
+  # 설치 확인
+  uv --version
+  ```
+
+# 설치 확인
+  uv --version
+
+  11.3 MCPO 설정
+
+  11.3.1 디렉토리 생성
+
+  mkdir -p ~/oci-ai-stack/mcpo
+
+  11.3.2 config.json 생성
+
+  Oracle Wallet을 사용하여 비밀번호 노출 없이 DB에 접속하도록 설정합니다:
+
+  cat > ~/oci-ai-stack/mcpo/config.json << 'EOF'
+  {
+    "mcpServers": {
+      "sqlcl": {
+        "command": "sql",
+        "args": ["/nolog", "@mcp"],
+        "env": {
+          "TNS_ADMIN": "/home/opc/wallet"
+        }
+      }
+    }
+  }
+  EOF
+
+  설명:
+  - "command": "sql" — SQLcl 실행 파일
+  - "args": ["/nolog", "@mcp"] — DB 미접속 상태로 MCP Server 모드 시작
+  - "TNS_ADMIN": "/home/opc/wallet" — 기존 Oracle Wallet 경로를 지정하여 Wallet 인증 사용
+
+  11.3.3 폴더 구조 확인
+
+  ~/oci-ai-stack/
+  ├── OCI_GenAI_access_gateway/   # 기존 (포트 8088)
+  ├── openwebui/                  # 기존 (포트 3000)
+  ├── .oci/                       # 기존 (OCI API Key)
+  ├── wallet/                     # 기존 (Oracle Wallet - SQLcl 인증에 사용)
+  └── mcpo/                       # 새로 추가 (포트 8000)
+      └── config.json
+
+  11.4 방화벽 설정
+
+  sudo firewall-cmd --permanent --add-port=8000/tcp
+  sudo firewall-cmd --reload
+
+  11.5 MCPO 실행
+
+  cd ~/oci-ai-stack/mcpo
+  uvx mcpo --port 8000 --api-key "
+  
+  " --config ./config.json
+
+  TIP: uvx는 MCPO를 자동으로 다운로드하고 격리된 환경에서 실행합니다. 별도로 pip install이나
+  가상환경(venv) 설정이 필요 없습니다.
+
+  11.6 동작 확인
+
+  브라우저에서 접속:
+  http://<서버IP>:8000/docs
+
+  자동 생성된 OpenAPI 문서에서 SQLcl MCP 도구(execute_sql, list_connections 등)가 보이면
+  성공입니다.
+
+  11.7 전체 서비스 포트 정리
+
+  ┌────────────────────┬───────────┬────────────────────────────┐
+  │       서비스       │   포트    │            용도            │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ OCI GenAI Gateway  │ 8088      │ LLM API 엔드포인트         │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ OpenWebUI          │ 3000      │ 웹 채팅 인터페이스         │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ MCPO               │ 8000      │ SQLcl MCP → OpenAPI 프록시 │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ API Docs (Gateway) │ 8088/docs │ Gateway Swagger UI         │
+  ├────────────────────┼───────────┼────────────────────────────┤
+  │ API Docs (MCPO)    │ 8000/docs │ MCPO Swagger UI            │
+  └────────────────────┴───────────┴────────────────────────────┘
+
+  11.8 문제 해결
+
+  문제: sql 명령어를 찾을 수 없음
+
+  # SQLcl 경로 확인
+  which sql
+  rpm -ql sqlcl
+
+  # PATH에 없으면 추가
+  echo 'export PATH=/opt/sqlcl/bin:$PATH' >> ~/.bashrc
+  source ~/.bashrc
+
+  문제: Java 버전 오류
+
+  # Java 버전 확인
+  java -version
+
+  # 여러 Java가 설치된 경우 Oracle JDK 선택
+  sudo alternatives --config java
+
+  문제: Wallet 인증 실패
+
+  # Wallet 파일 존재 확인
+  ls -la /home/opc/wallet/
+
+  # tnsnames.ora 확인
+  cat /home/opc/wallet/tnsnames.ora
+
+  # SQLcl로 직접 접속 테스트
+  export TNS_ADMIN=/home/opc/wallet
+  sql OPENWEBUIUSER@handson26ai_medium
+
+  문제: MCPO 포트 충돌
+
+  # 포트 사용 확인
+  sudo ss -tlnp | grep 8000
+
+  # 다른 포트로 실행
+  uvx mcpo --port 8001 --api-key "your-secret-key" --config ./config.json
+
+
+  11.9 SQLcl Named Connection 저장
+
+  `list-connections` 엔드포인트에서 연결 목록이 조회되려면 SQLcl의 연결 관리자에 named connection을
+  먼저 저장해야 합니다. MCPO 실행 전(또는 후)에 아래 명령을 한 번만 실행하면 영구 저장됩니다.
+
+  #### 11.9.1 Named Connection 저장 방법
+
+  ```bash
+  # TNS_ADMIN을 설정한 뒤 SQLcl /nolog 모드에서 저장
+  TNS_ADMIN=/home/opc/wallet sql /nolog <<'EOF'
+  conn -save adwrent_medium -savepwd OPENWEBUIUSER/Oracle_12345@adwrent_medium
+  conn -save adwrent_low    -savepwd OPENWEBUIUSER/Oracle_12345@adwrent_low
+  conn -save adwrent_high   -savepwd OPENWEBUIUSER/Oracle_12345@adwrent_high
+  exit
+  EOF
+  ```
+
+  옵션 설명:
+  - `-save <이름>` — 저장할 connection 이름 (list-connections에서 조회되는 이름)
+  - `-savepwd`     — 비밀번호도 함께 저장 (없으면 연결 시 매번 입력 필요)
+
+  #### 11.9.2 저장 결과 확인
+
+  ```bash
+  TNS_ADMIN=/home/opc/wallet sql /nolog <<'EOF'
+  connmgr list -flat
+  exit
+  EOF
+  # adwrent_high
+  # adwrent_low
+  # adwrent_medium
+  ```
+
+  #### 11.9.3 MCPO API로 확인
+
+  ```bash
+  curl -s -X POST http://localhost:8000/sqlcl/list-connections \
+    -H "Authorization: Bearer mcposecret" \
+    -H "Content-Type: application/json" \
+    -d '{"model": "claude-sonnet-4-6", "definition_type": "all", "show_details": true}'
+  ```
+
+  #### 11.9.4 Named Connection으로 연결
+
+  저장된 이름으로 `/connect` 엔드포인트를 호출하면 DB 버전, NLS 파라미터 등
+  컨텍스트 정보를 자동으로 반환합니다.
+
+  ```bash
+  curl -s -X POST http://localhost:8000/sqlcl/connect \
+    -H "Authorization: Bearer mcposecret" \
+    -H "Content-Type: application/json" \
+    -d '{"connection_name": "adwrent_medium", "model": "claude-sonnet-4-6"}'
+  ```
+
+  > **주의**: Named Connection은 SQLcl을 실행하는 OS 사용자(`opc`) 기준으로 저장됩니다.
+  > Wallet이 교체된 경우 tnsnames.ora의 서비스 이름이 바뀔 수 있으므로,
+  > 교체 후 connection을 다시 저장해야 합니다.
+
+  #### 11.9.5 Connection 삭제
+
+  ```bash
+  TNS_ADMIN=/home/opc/wallet sql /nolog <<'EOF'
+  connmgr delete -conn adwrent_medium
+  exit
+  EOF
+  ```
+
+---
+
+OpenWebUI에서 MCPO를 연결하는 화면 입력 가이드
+
+- Admin - Settings - External Tools 
+                                                        ┌───────────────────────────┬────────────────────────────────────────────────┐
+  │           필드            │                       값                       │             
+  ├───────────────────────────┼────────────────────────────────────────────────┤             
+  │ Type                      │ OpenAPI (이미 선택됨)                          │             
+  ├───────────────────────────┼────────────────────────────────────────────────┤             
+  │ URL                       │ http://158.179.172.126:8000 (이미 입력됨)      │
+  ├───────────────────────────┼────────────────────────────────────────────────┤
+  │ OpenAPI Spec              │ http://158.179.172.126:8000/sqlcl/openapi.json │
+  ├───────────────────────────┼────────────────────────────────────────────────┤
+  │ Auth                      │ Bearer / mcposecret (이미 입력됨)              │
+  ├───────────────────────────┼────────────────────────────────────────────────┤
+  │ Headers                   │ 비워두기                                       │
+  ├───────────────────────────┼────────────────────────────────────────────────┤
+  │ ID                        │ 비워두기                                       │
+  ├───────────────────────────┼────────────────────────────────────────────────┤
+  │ Name                      │ SQLcl MCP                                      │
+  ├───────────────────────────┼────────────────────────────────────────────────┤
+  │ Description               │ Oracle Database SQLcl MCP Server               │
+  ├───────────────────────────┼────────────────────────────────────────────────┤
+  │ Function Name Filter List │ 비워두기                                       │
+  └───────────────────────────┴────────────────────────────────────────────────┘
+
+                                                                          
+

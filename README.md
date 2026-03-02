@@ -731,13 +731,13 @@ podman system prune -f
 **Podman 버전**: 4.x 이상 권장  
 **OCI GenAI Gateway 버전**: v20251217
 
-## 11. MCPO + SQLcl MCP Server 설치
+## 5. MCPO + SQLcl MCP Server 설치
 
   MCPO(MCP-to-OpenAPI Proxy)를 설치하여 SQLcl의 내장 MCP Server를 HTTP OpenAPI 엔드포인트로
   변환합니다.
   OpenWebUI 등 다른 도구에서 SQLcl의 데이터베이스 기능을 REST API로 호출할 수 있게 됩니다.
 
-  ### 11.1 개요
+  ### 5.1 개요
 
   [SQLcl MCP Server] ── stdio ──▶ [MCPO] ── HTTP/OpenAPI ──▶ [OpenWebUI 등 클라이언트]
           (포트 없음)                (포트 8000)                   (포트 3000)
@@ -748,9 +748,9 @@ podman system prune -f
   | MCPO | MCP 프로토콜을 OpenAPI(HTTP)로 변환하는 프록시 |
   | Oracle Wallet | DB 인증 정보 (비밀번호 노출 없이 접속) |
 
-  ### 11.2 사전 준비사항
+  ### 5.2 사전 준비사항
 
-  #### 11.2.1 Oracle JDK 설치
+  #### 5.2.1 Oracle JDK 설치
 
   SQLcl은 Java가 필요합니다. Oracle JDK를 설치합니다 (OpenJDK 아님):
 
@@ -765,7 +765,7 @@ podman system prune -f
   # Java HotSpot(TM) 64-Bit Server VM
   ```
 
-  11.2.2 SQLcl 설치
+  5.2.2 SQLcl 설치
 
   ```bash
   # SQLcl 설치
@@ -782,7 +782,7 @@ podman system prune -f
   참고: SQLcl 25.1 버전부터 MCP Server 기능이 내장되어 있습니다. 별도 빌드나 추가 설치 없이
   sql /nolog @mcp 명령으로 MCP Server 모드를 실행할 수 있습니다.
 
-  11.2.3 uv 설치
+  5.2.3 uv 설치
 
   MCPO를 가상환경 없이 간편하게 실행하기 위해 uv를 사용합니다:
 
@@ -798,13 +798,13 @@ podman system prune -f
 # 설치 확인
   uv --version
 
-  11.3 MCPO 설정
+  5.3 MCPO 설정
 
-  11.3.1 디렉토리 생성
+  5.3.1 디렉토리 생성
 
   mkdir -p ~/oci-ai-stack/mcpo
 
-  11.3.2 config.json 생성
+  5.3.2 config.json 생성
 
   Oracle Wallet을 사용하여 비밀번호 노출 없이 DB에 접속하도록 설정합니다:
 
@@ -827,7 +827,7 @@ podman system prune -f
   - "args": ["/nolog", "@mcp"] — DB 미접속 상태로 MCP Server 모드 시작
   - "TNS_ADMIN": "/home/opc/wallet" — 기존 Oracle Wallet 경로를 지정하여 Wallet 인증 사용
 
-  11.3.3 폴더 구조 확인
+  5.3.3 폴더 구조 확인
 
   ~/oci-ai-stack/
   ├── OCI_GenAI_access_gateway/   # 기존 (포트 8088)
@@ -837,12 +837,12 @@ podman system prune -f
   └── mcpo/                       # 새로 추가 (포트 8000)
       └── config.json
 
-  11.4 방화벽 설정
+  5.4 방화벽 설정
 
   sudo firewall-cmd --permanent --add-port=8000/tcp
   sudo firewall-cmd --reload
 
-  11.5 MCPO 실행
+  5.5 MCPO 실행
 
   cd ~/oci-ai-stack/mcpo
   uvx mcpo --port 8000 --api-key "
@@ -852,7 +852,7 @@ podman system prune -f
   TIP: uvx는 MCPO를 자동으로 다운로드하고 격리된 환경에서 실행합니다. 별도로 pip install이나
   가상환경(venv) 설정이 필요 없습니다.
 
-  11.6 동작 확인
+  5.6 동작 확인
 
   브라우저에서 접속:
   http://<서버IP>:8000/docs
@@ -860,7 +860,7 @@ podman system prune -f
   자동 생성된 OpenAPI 문서에서 SQLcl MCP 도구(execute_sql, list_connections 등)가 보이면
   성공입니다.
 
-  11.7 전체 서비스 포트 정리
+  5.7 전체 서비스 포트 정리
 
   ┌────────────────────┬───────────┬────────────────────────────┐
   │       서비스       │   포트    │            용도            │
@@ -876,7 +876,7 @@ podman system prune -f
   │ API Docs (MCPO)    │ 8000/docs │ MCPO Swagger UI            │
   └────────────────────┴───────────┴────────────────────────────┘
 
-  11.8 문제 해결
+  5.8 문제 해결
 
   문제: sql 명령어를 찾을 수 없음
 
@@ -917,12 +917,12 @@ podman system prune -f
   uvx mcpo --port 8001 --api-key "your-secret-key" --config ./config.json
 
 
-  11.9 SQLcl Named Connection 저장
+  5.9 SQLcl Named Connection 저장
 
   `list-connections` 엔드포인트에서 연결 목록이 조회되려면 SQLcl의 연결 관리자에 named connection을
   먼저 저장해야 합니다. MCPO 실행 전(또는 후)에 아래 명령을 한 번만 실행하면 영구 저장됩니다.
 
-  #### 11.9.1 Named Connection 저장 방법
+  #### 5.9.1 Named Connection 저장 방법
 
   ```bash
   # TNS_ADMIN을 설정한 뒤 SQLcl /nolog 모드에서 저장
@@ -938,7 +938,7 @@ podman system prune -f
   - `-save <이름>` — 저장할 connection 이름 (list-connections에서 조회되는 이름)
   - `-savepwd`     — 비밀번호도 함께 저장 (없으면 연결 시 매번 입력 필요)
 
-  #### 11.9.2 저장 결과 확인
+  #### 5.9.2 저장 결과 확인
 
   ```bash
   TNS_ADMIN=/home/opc/wallet sql /nolog <<'EOF'
@@ -950,7 +950,7 @@ podman system prune -f
   # adwrent_medium
   ```
 
-  #### 11.9.3 MCPO API로 확인
+  #### 5.9.3 MCPO API로 확인
 
   ```bash
   curl -s -X POST http://localhost:8000/sqlcl/list-connections \
@@ -959,7 +959,7 @@ podman system prune -f
     -d '{"model": "claude-sonnet-4-6", "definition_type": "all", "show_details": true}'
   ```
 
-  #### 11.9.4 Named Connection으로 연결
+  #### 5.9.4 Named Connection으로 연결
 
   저장된 이름으로 `/connect` 엔드포인트를 호출하면 DB 버전, NLS 파라미터 등
   컨텍스트 정보를 자동으로 반환합니다.
@@ -975,7 +975,7 @@ podman system prune -f
   > Wallet이 교체된 경우 tnsnames.ora의 서비스 이름이 바뀔 수 있으므로,
   > 교체 후 connection을 다시 저장해야 합니다.
 
-  #### 11.9.5 Connection 삭제
+  #### 5.9.5 Connection 삭제
 
   ```bash
   TNS_ADMIN=/home/opc/wallet sql /nolog <<'EOF'
